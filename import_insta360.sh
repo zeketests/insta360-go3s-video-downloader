@@ -44,14 +44,6 @@ fi
 
 echo "${CYAN}Camera found at: $SRC_VOL${RESET}"
 
-read -r -p "Copy files from camera to ${DEST_ROOT}? [Y/n] " import_ans
-if [[ "$import_ans" =~ ^[Nn]$ ]]; then
-    echo "Cancelled. Nothing copied."
-    exit 0
-fi
-
-mkdir -p "$DEST_ROOT"
-
 # Build a glob find expression for our extensions.
 find_args=()
 for ext in "${EXTS[@]}"; do
@@ -59,15 +51,36 @@ for ext in "${EXTS[@]}"; do
 done
 unset 'find_args[${#find_args[@]}-1]'   # drop trailing -o
 
+candidates=()
+while IFS= read -r -d '' f; do
+    candidates+=("$f")
+done < <(find "${SRC_VOL}DCIM" -type f \( "${find_args[@]}" \) -print0)
+
+if [ "${#candidates[@]}" -eq 0 ]; then
+    echo "No media files found on camera."
+    exit 0
+fi
+
+echo "${BOLD}Found ${#candidates[@]} file(s) on camera:${RESET}"
+for f in "${candidates[@]}"; do
+    echo "  $(basename "$f")"
+done
+
+read -r -p "Copy these files to ${DEST_ROOT}? [Y/n] " import_ans
+if [[ "$import_ans" =~ ^[Nn]$ ]]; then
+    echo "Cancelled. Nothing copied."
+    exit 0
+fi
+
+mkdir -p "$DEST_ROOT"
+
 copied=0
 skipped=0
-found=0
 copied_paths=()
 skipped_paths=()
 dest_dirs=()
 
-while IFS= read -r -d '' f; do
-    found=$((found + 1))
+for f in "${candidates[@]}"; do
     size=$(stat -f%z "$f")
     fname=$(basename "$f")
 
@@ -97,12 +110,7 @@ while IFS= read -r -d '' f; do
     esac
     copied=$((copied + 1))
     echo "${GREEN}Copied:${RESET} $fname -> ${dest#$HOME/}"
-done < <(find "${SRC_VOL}DCIM" -type f \( "${find_args[@]}" \) -print0)
-
-if [ "$found" -eq 0 ]; then
-    echo "No media files found on camera."
-    exit 0
-fi
+done
 
 echo
 echo "${BOLD}Done.${RESET} Copied: ${GREEN}$copied${RESET}, skipped (already imported): ${YELLOW}$skipped${RESET}."
