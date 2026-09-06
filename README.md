@@ -1,4 +1,4 @@
-# insta360-go3s-video-downloader
+# insta360 go3s video downloader
 
 Import photos/videos from an Insta360 GO 3S (USB mass storage) into a local
 folder on macOS, organized by date.
