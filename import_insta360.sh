@@ -149,38 +149,71 @@ for d in "${dest_dirs[@]}"; do
     open "$d"
 done
 
+# Key shared by a video and its .lrv proxy, e.g.
+#   VID_20250903_142501_00_012.mp4 / LRV_20250903_142501_01_012.lrv -> 20250903_142501_012
+# Prints nothing for names that don't follow this pattern.
+media_key_re='^[A-Za-z]+_([0-9]{8}_[0-9]{6})_[0-9]{2}_([0-9]+)\.'
+media_key() {
+    local b
+    b=$(basename "$1")
+    if [[ "$b" =~ $media_key_re ]]; then
+        echo "${BASH_REMATCH[1]}_${BASH_REMATCH[2]}"
+    fi
+}
+
+# Space-delimited key list (bash 3.2 has no associative arrays).
+copied_keys=" "
+for f in "${copied_paths[@]}"; do
+    k=$(media_key "$f")
+    [ -n "$k" ] && copied_keys+="$k "
+done
+
+# Only proxies belonging to a copied video; others stay so the Insta360 app
+# can still preview videos left on the camera.
 lrv_paths=()
 while IFS= read -r -d '' lf; do
-    lrv_paths+=("$lf")
+    k=$(media_key "$lf")
+    case "$copied_keys" in
+        *" $k "*) [ -n "$k" ] && lrv_paths+=("$lf") ;;
+    esac
 done < <(find "${SRC_VOL}DCIM" -type f -iname "*.lrv" -print0)
 
 total_delete=$((copied + ${#lrv_paths[@]}))
 
-read -r -p "Delete the $copied copied file(s) and ${#lrv_paths[@]} .lrv proxy file(s) from the camera? [y/N] " ans
+read -r -p "Delete the $copied copied file(s) and ${#lrv_paths[@]} matching .lrv proxy file(s) from the camera? [y/N] " ans
 if [[ "$ans" =~ ^[Yy]$ ]]; then
     echo
-    echo "${RED}${BOLD}WARNING:${RESET} this will permanently delete $total_delete file(s) from your Insta360 GO 3S."
+    echo "${RED}${BOLD}WARNING:${RESET} this will permanently delete up to $total_delete file(s) from your Insta360 GO 3S."
+    echo "Files whose local copy fails verification (missing or size mismatch) are kept."
     echo "This cannot be undone. Files were copied to: $DEST_ROOT"
     read -r -p "Type DELETE to confirm: " confirm
     if [ "$confirm" = "DELETE" ]; then
         deleted=0
         kept=0
+        deleted_keys=" "
         for i in "${!copied_paths[@]}"; do
             f="${copied_paths[$i]}"
             d="${copied_dests[$i]}"
             # Only delete from camera if the local copy exists with matching size.
             if [ -f "$d" ] && [ "$(stat -f%z "$d")" = "$(stat -f%z "$f")" ]; then
+                k=$(media_key "$f")
                 rm -f "$f"
                 deleted=$((deleted + 1))
+                [ -n "$k" ] && deleted_keys+="$k "
             else
                 kept=$((kept + 1))
                 echo "${RED}Not deleted:${RESET} $(basename "$f") (local copy missing or size mismatch: ${d#$HOME/})"
             fi
         done
+        # Proxy goes only if its video was actually deleted.
         # ${arr[@]+...} guard: bash 3.2 (macOS /bin/bash) + set -u errors on empty arrays.
         for f in ${lrv_paths[@]+"${lrv_paths[@]}"}; do
-            rm -f "$f"
-            deleted=$((deleted + 1))
+            case "$deleted_keys" in
+                *" $(media_key "$f") "*)
+                    rm -f "$f"
+                    deleted=$((deleted + 1))
+                    ;;
+            esac
         done
         echo "${GREEN}Deleted $deleted file(s) from camera.${RESET}"
         if [ "$kept" -gt 0 ]; then
