@@ -31,9 +31,11 @@ find_camera_volume() {
 }
 
 # Copy one file to dest with a progress bar (rsync ships with macOS).
+# Extra args are passed through to rsync.
 copy_file() {
     local src="$1" dest="$2"
-    rsync -a --progress "$src" "$dest"
+    shift 2
+    rsync -a --progress "$@" "$src" "$dest"
 }
 
 SRC_VOL="$(find_camera_volume || true)"
@@ -123,7 +125,8 @@ if [ "$skipped" -gt 0 ]; then
             mdate=$(date -r "$(stat -f%m "$f")" +%Y-%m-%d)
             day_dir="$DEST_ROOT/$mdate"
             dest="$day_dir/$fname"
-            copy_file "$f" "$dest"
+            # --ignore-times: rsync -a preserved mtime, so quick-check would skip it.
+            copy_file "$f" "$dest" --ignore-times
             copied_paths+=("$f")
             case " ${dest_dirs[*]-} " in
                 *" $day_dir "*) ;;
@@ -160,7 +163,8 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
         for f in "${copied_paths[@]}"; do
             rm -f "$f"
         done
-        for f in "${lrv_paths[@]}"; do
+        # ${arr[@]+...} guard: bash 3.2 (macOS /bin/bash) + set -u errors on empty arrays.
+        for f in ${lrv_paths[@]+"${lrv_paths[@]}"}; do
             rm -f "$f"
         done
         echo "${GREEN}Deleted $total_delete file(s) from camera.${RESET}"
