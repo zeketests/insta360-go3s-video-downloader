@@ -79,6 +79,7 @@ mkdir -p "$DEST_ROOT"
 copied=0
 skipped=0
 copied_paths=()
+copied_dests=()   # parallel to copied_paths: where each file was copied to
 skipped_paths=()
 dest_dirs=()
 
@@ -106,6 +107,7 @@ for f in "${candidates[@]}"; do
 
     copy_file "$f" "$dest"
     copied_paths+=("$f")
+    copied_dests+=("$dest")
     case " ${dest_dirs[*]-} " in
         *" $day_dir "*) ;;
         *) dest_dirs+=("$day_dir") ;;
@@ -128,6 +130,7 @@ if [ "$skipped" -gt 0 ]; then
             # --ignore-times: rsync -a preserved mtime, so quick-check would skip it.
             copy_file "$f" "$dest" --ignore-times
             copied_paths+=("$f")
+            copied_dests+=("$dest")
             case " ${dest_dirs[*]-} " in
                 *" $day_dir "*) ;;
                 *) dest_dirs+=("$day_dir") ;;
@@ -160,14 +163,29 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
     echo "This cannot be undone. Files were copied to: $DEST_ROOT"
     read -r -p "Type DELETE to confirm: " confirm
     if [ "$confirm" = "DELETE" ]; then
-        for f in "${copied_paths[@]}"; do
-            rm -f "$f"
+        deleted=0
+        kept=0
+        for i in "${!copied_paths[@]}"; do
+            f="${copied_paths[$i]}"
+            d="${copied_dests[$i]}"
+            # Only delete from camera if the local copy exists with matching size.
+            if [ -f "$d" ] && [ "$(stat -f%z "$d")" = "$(stat -f%z "$f")" ]; then
+                rm -f "$f"
+                deleted=$((deleted + 1))
+            else
+                kept=$((kept + 1))
+                echo "${RED}Not deleted:${RESET} $(basename "$f") (local copy missing or size mismatch: ${d#$HOME/})"
+            fi
         done
         # ${arr[@]+...} guard: bash 3.2 (macOS /bin/bash) + set -u errors on empty arrays.
         for f in ${lrv_paths[@]+"${lrv_paths[@]}"}; do
             rm -f "$f"
+            deleted=$((deleted + 1))
         done
-        echo "${GREEN}Deleted $total_delete file(s) from camera.${RESET}"
+        echo "${GREEN}Deleted $deleted file(s) from camera.${RESET}"
+        if [ "$kept" -gt 0 ]; then
+            echo "${YELLOW}Kept $kept file(s) on camera that failed verification.${RESET}"
+        fi
     else
         echo "${YELLOW}Confirmation not given. Nothing deleted from camera.${RESET}"
     fi
