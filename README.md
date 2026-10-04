@@ -14,8 +14,16 @@ folder on macOS, organized by date.
    file found (`.mp4`, `.mov`, `.jpg`, `.jpeg`, `.dng`, `.insv`, `.insp`).
 3. Confirm to copy the files into `~/Movies/Insta360/YYYY-MM-DD/`, grouped by
    the file's modification date. Files already present locally (same name +
-   size) are skipped.
-4. Optionally delete the copied files (and `.lrv` proxy files) off the
+   size) are skipped. A file with the same name but a different size is
+   saved under a new name (`NAME_HHMMSS.ext`) instead of overwriting.
+4. If any files were skipped, optionally re-copy them anyway, overwriting the
+   local copies.
+5. Optionally delete the copied files (and `.lrv` proxy files) off the
    camera, with a typed `DELETE` confirmation.
 
 Destination folders open in Finder automatically after copying.
+
+## Requirements
+
+macOS only (uses BSD `stat`/`date`, `open`, and `/Volumes`). Runs on the
+stock `/bin/bash` 3.2; no extra installs needed — `rsync` ships with macOS.
