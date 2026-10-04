@@ -19,7 +19,9 @@ folder on macOS, organized by date.
 4. If any files were skipped, optionally re-copy them anyway, overwriting the
    local copies.
 5. Optionally delete the copied files (and `.lrv` proxy files) off the
-   camera, with a typed `DELETE` confirmation.
+   camera, with a typed `DELETE` confirmation. A file is only deleted if its
+   local copy exists with the same size; any that fail this check stay on the
+   camera and are reported.
 
 Destination folders open in Finder automatically after copying.
 
