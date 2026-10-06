@@ -38,6 +38,18 @@ copy_file() {
     rsync -a --progress "$@" "$src" "$dest"
 }
 
+offer_eject() {
+    read -r -p "Eject the camera now? [Y/n] " eject_ans
+    if [[ "$eject_ans" =~ ^[Nn]$ ]]; then
+        return 0
+    fi
+    if diskutil eject "$SRC_VOL" >/dev/null; then
+        echo "${GREEN}Camera ejected. Safe to unplug.${RESET}"
+    else
+        echo "${YELLOW}Could not eject camera (in use?). Eject it from Finder before unplugging.${RESET}"
+    fi
+}
+
 SRC_VOL="$(find_camera_volume || true)"
 if [ -z "${SRC_VOL:-}" ]; then
     echo "${RED}No camera found.${RESET} Plug in Insta360 GO 3S via USB and make sure it shows up under /Volumes." >&2
@@ -142,6 +154,7 @@ if [ "$skipped" -gt 0 ]; then
 fi
 
 if [ "$copied" -eq 0 ]; then
+    offer_eject
     exit 0
 fi
 
@@ -225,3 +238,5 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
 else
     echo "Keeping files on camera."
 fi
+
+offer_eject
