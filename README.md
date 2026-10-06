@@ -25,6 +25,7 @@ folder on macOS, organized by date.
    by name, e.g. `VID_20250903_142501_00_012.mp4` ↔
    `LRV_20250903_142501_01_012.lrv`), so videos left on the camera keep their
    previews in the Insta360 app.
+6. Optionally eject the camera so it's safe to unplug.
 
 Destination folders open in Finder automatically after copying.
 
