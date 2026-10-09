@@ -93,6 +93,7 @@ skipped=0
 copied_paths=()
 copied_dests=()   # parallel to copied_paths: where each file was copied to
 skipped_paths=()
+skipped_dests=()  # parallel to skipped_paths: existing local copy
 dest_dirs=()
 
 for f in "${candidates[@]}"; do
@@ -110,6 +111,7 @@ for f in "${candidates[@]}"; do
             # Already present locally (same name + size) — skip.
             skipped=$((skipped + 1))
             skipped_paths+=("$f")
+            skipped_dests+=("$dest")
             echo "${YELLOW}Skipped:${RESET} $fname (already imported)"
             continue
         fi
@@ -150,17 +152,26 @@ if [ "$skipped" -gt 0 ]; then
             copied=$((copied + 1))
             echo "${GREEN}Copied:${RESET} $fname -> ${dest#$HOME/}"
         done
+        # Now tracked as copied; don't count them twice below.
+        skipped_paths=()
+        skipped_dests=()
     fi
 fi
 
-if [ "$copied" -eq 0 ]; then
+# Delete candidates: files copied this run plus files already imported
+# earlier (so a later run can still clear them off the camera).
+# ${arr[@]+...} guard: bash 3.2 (macOS /bin/bash) + set -u errors on empty arrays.
+delete_paths=(${copied_paths[@]+"${copied_paths[@]}"} ${skipped_paths[@]+"${skipped_paths[@]}"})
+delete_dests=(${copied_dests[@]+"${copied_dests[@]}"} ${skipped_dests[@]+"${skipped_dests[@]}"})
+
+for d in ${dest_dirs[@]+"${dest_dirs[@]}"}; do
+    open "$d"
+done
+
+if [ "${#delete_paths[@]}" -eq 0 ]; then
     offer_eject
     exit 0
 fi
-
-for d in "${dest_dirs[@]}"; do
-    open "$d"
-done
 
 # Key shared by a video and its .lrv proxy, e.g.
 #   VID_20250903_142501_00_012.mp4 / LRV_20250903_142501_01_012.lrv -> 20250903_142501_012
@@ -176,7 +187,7 @@ media_key() {
 
 # Space-delimited key list (bash 3.2 has no associative arrays).
 copied_keys=" "
-for f in "${copied_paths[@]}"; do
+for f in "${delete_paths[@]}"; do
     k=$(media_key "$f")
     [ -n "$k" ] && copied_keys+="$k "
 done
@@ -191,9 +202,9 @@ while IFS= read -r -d '' lf; do
     esac
 done < <(find "${SRC_VOL}DCIM" -type f -iname "*.lrv" -print0)
 
-total_delete=$((copied + ${#lrv_paths[@]}))
+total_delete=$((${#delete_paths[@]} + ${#lrv_paths[@]}))
 
-read -r -p "Delete the $copied copied file(s) and ${#lrv_paths[@]} matching .lrv proxy file(s) from the camera? [y/N] " ans
+read -r -p "Delete the ${#delete_paths[@]} imported file(s) and ${#lrv_paths[@]} matching .lrv proxy file(s) from the camera? [y/N] " ans
 if [[ "$ans" =~ ^[Yy]$ ]]; then
     echo
     echo "${RED}${BOLD}WARNING:${RESET} this will permanently delete up to $total_delete file(s) from your Insta360 GO 3S."
@@ -204,9 +215,9 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
         deleted=0
         kept=0
         deleted_keys=" "
-        for i in "${!copied_paths[@]}"; do
-            f="${copied_paths[$i]}"
-            d="${copied_dests[$i]}"
+        for i in "${!delete_paths[@]}"; do
+            f="${delete_paths[$i]}"
+            d="${delete_dests[$i]}"
             # Only delete from camera if the local copy exists with matching size.
             if [ -f "$d" ] && [ "$(stat -f%z "$d")" = "$(stat -f%z "$f")" ]; then
                 k=$(media_key "$f")
@@ -219,7 +230,6 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
             fi
         done
         # Proxy goes only if its video was actually deleted.
-        # ${arr[@]+...} guard: bash 3.2 (macOS /bin/bash) + set -u errors on empty arrays.
         for f in ${lrv_paths[@]+"${lrv_paths[@]}"}; do
             case "$deleted_keys" in
                 *" $(media_key "$f") "*)
