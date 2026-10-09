@@ -18,8 +18,9 @@ folder on macOS, organized by date.
    saved under a new name (`NAME_HHMMSS.ext`) instead of overwriting.
 4. If any files were skipped, optionally re-copy them anyway, overwriting the
    local copies.
-5. Optionally delete the copied files off the camera, with a typed `DELETE`
-   confirmation. A file is only deleted if its local copy exists with the
+5. Optionally delete the imported files off the camera, with a typed `DELETE`
+   confirmation. This includes files skipped as already imported, so a later
+   run can clear files kept on the camera earlier. A file is only deleted if its local copy exists with the
    same size; any that fail this check stay on the camera and are reported.
    A video's `.lrv` proxy is deleted only together with that video (matched
    by name, e.g. `VID_20250903_142501_00_012.mp4` ↔
